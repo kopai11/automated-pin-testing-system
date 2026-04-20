@@ -247,16 +247,16 @@ class OperatorPageMixin:
 
         row_adj_current.addWidget(self.zero_adj_group)
 
-        current_box = QGroupBox("🔌 Current Source")
+        current_box = QGroupBox("Current Path Control")
         current_box.setStyleSheet("""
             QGroupBox::title {
             font-weight: bold;
             }
         """)
         current_layout = QHBoxLayout(current_box)
-        self.btn_current_on = QPushButton("CurrentOn")
+        self.btn_current_on = QPushButton("On")
         self.btn_current_on.setStyleSheet("font-weight: 700;")
-        self.btn_current_off = QPushButton("CurrentOff")
+        self.btn_current_off = QPushButton("Off")
         self.btn_current_off.setStyleSheet("font-weight: 700;")
         current_layout.addWidget(self.btn_current_on)
         current_layout.addWidget(self.btn_current_off)
