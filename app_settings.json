@@ -1,0 +1,10 @@
+{
+  "current_theme": "Dark",
+  "app_font_size": "Large",
+  "graph_refresh_interval": 10,
+  "graph_line_thickness": "Thin",
+  "serial_auto_scroll": true,
+  "serial_timestamp_lines": false,
+  "default_save_folder": "C:\\Users\\HDD 205\\Desktop\\Pogo_Pin Quality_Test_ Data",
+  "export_format": "CSV"
+}

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Pogo pin tip (bottom, pointed) -->
+  <polygon points="32,58 26,42 38,42" fill="#C0C0C0" stroke="#888" stroke-width="1"/>
+  <!-- Pogo pin barrel (middle cylinder) -->
+  <rect x="26" y="18" width="12" height="24" rx="2" fill="#FFD700" stroke="#B8860B" stroke-width="1.5"/>
+  <!-- Pogo pin spring coils -->
+  <line x1="28" y1="22" x2="36" y2="22" stroke="#B8860B" stroke-width="1.2"/>
+  <line x1="28" y1="26" x2="36" y2="26" stroke="#B8860B" stroke-width="1.2"/>
+  <line x1="28" y1="30" x2="36" y2="30" stroke="#B8860B" stroke-width="1.2"/>
+  <line x1="28" y1="34" x2="36" y2="34" stroke="#B8860B" stroke-width="1.2"/>
+  <line x1="28" y1="38" x2="36" y2="38" stroke="#B8860B" stroke-width="1.2"/>
+  <!-- Pogo pin head (top, rounded) -->
+  <rect x="24" y="10" width="16" height="8" rx="4" fill="#C0C0C0" stroke="#888" stroke-width="1.5"/>
+  <!-- Small contact point at top -->
+  <circle cx="32" cy="8" r="3" fill="#E0E0E0" stroke="#888" stroke-width="1"/>
+</svg>
