@@ -1,4 +1,6 @@
+import math
 from matplotlib.figure import Figure
+from matplotlib.ticker import MultipleLocator
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 
@@ -133,6 +135,28 @@ class CategoryPlotPage(QWidget):
             self.ax_cur.legend(loc='upper right')
         self.ax_cur.set_ylabel("Current (A)")
         self.ax_cur.set_xlim(x_min, x_max)
+        # Snap Y-axis to clean boundaries with padding
+        all_cur = list(cur_display)
+        if self.has_other:
+            all_cur += list(cur_display_other)
+        if all_cur:
+            data_range = max(all_cur) - min(all_cur)
+            # Pick tick step based on data range to keep ~5-7 ticks
+            if data_range > 0.1:
+                step = 0.05
+            elif data_range > 0.05:
+                step = 0.02
+            else:
+                step = 0.01
+            factor = int(1 / step)
+            cur_lo = math.floor(min(all_cur) * factor) / factor - step
+            cur_hi = math.ceil(max(all_cur) * factor) / factor + step
+            if (cur_hi - cur_lo) < step * 5:
+                mid = (cur_lo + cur_hi) / 2
+                cur_lo = round(mid - step * 2.5, len(str(factor)))
+                cur_hi = round(mid + step * 2.5, len(str(factor)))
+            self.ax_cur.set_ylim(cur_lo, cur_hi)
+            self.ax_cur.yaxis.set_major_locator(MultipleLocator(step))
         self.ax_cur.grid(True, linestyle="--", alpha=0.7)
 
         # Resistance - plot TM
