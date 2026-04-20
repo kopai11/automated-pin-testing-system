@@ -17,8 +17,8 @@ from PySide6.QtWidgets import (
     QWidget, QTabWidget, QStackedLayout, QFileDialog,
 )
 
-from ..helpers import warn, make_scroll
-from ..category_plot import CategoryPlotPage
+from ..core.helpers import warn, make_scroll
+from ..core.category_plot import CategoryPlotPage
 
 
 class GraphPageMixin:

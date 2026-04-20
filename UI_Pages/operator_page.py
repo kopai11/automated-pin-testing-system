@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (
     QMessageBox, QSizePolicy, QWidget, QRadioButton, QButtonGroup,
 )
 
-from ..helpers import info, warn, err, make_scroll
-from ..serial_reader import SerialReader
+from ..core.helpers import info, warn, err, make_scroll
+from ..core.serial_reader import SerialReader
 
 
 class OperatorPageMixin:

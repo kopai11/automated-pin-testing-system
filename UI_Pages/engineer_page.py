@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QSizePolicy, QWidget, QRadioButton, QButtonGroup, QScrollArea,
 )
 
-from ..helpers import make_scroll
+from ..core.helpers import make_scroll
 
 
 class EngineerPageMixin:

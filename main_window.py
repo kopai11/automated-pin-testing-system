@@ -9,20 +9,20 @@ from PySide6.QtWidgets import (
     QTabWidget, QPushButton, QLabel, QLineEdit,
 )
 
-from .helpers import WatermarkedWidget
-from .theme import ThemeMixin
-from .navigation import NavigationMixin
-from .auth import AuthMixin
-from .config_manager import ConfigMixin
+from .core.helpers import WatermarkedWidget
+from .core.theme import ThemeMixin
+from .core.navigation import NavigationMixin
+from .core.auth import AuthMixin
+from .core.config_manager import ConfigMixin
 
-from .pages.main_page import MainPageMixin
-from .pages.operator_page import OperatorPageMixin
-from .pages.engineer_page import EngineerPageMixin
-from .pages.graph_page import GraphPageMixin
-from .pages.summary_page import SummaryPageMixin
-from .pages.spc_chart_page import SPCChartPageMixin
-from .pages.yield_page import YieldPageMixin
-from .pages.app_settings_page import AppSettingsPageMixin
+from .UI_Pages.main_page import MainPageMixin
+from .UI_Pages.operator_page import OperatorPageMixin
+from .UI_Pages.engineer_page import EngineerPageMixin
+from .UI_Pages.graph_page import GraphPageMixin
+from .UI_Pages.summary_page import SummaryPageMixin
+from .UI_Pages.spc_chart_page import SPCChartPageMixin
+from .UI_Pages.yield_page import YieldPageMixin
+from .UI_Pages.app_settings_page import AppSettingsPageMixin
 
 
 class MainWindow(

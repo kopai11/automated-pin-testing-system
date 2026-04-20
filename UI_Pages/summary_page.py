@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QWidget, QFrame, QSizePolicy, QMessageBox, QFileDialog,
 )
 
-from ..helpers import make_scroll
+from ..core.helpers import make_scroll
 
 
 class SummaryPageMixin:

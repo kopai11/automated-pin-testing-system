@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-from ..helpers import make_scroll
+from ..core.helpers import make_scroll
 
 
 class YieldPageMixin:
