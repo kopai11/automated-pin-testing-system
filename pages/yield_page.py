@@ -298,7 +298,7 @@ class YieldPageMixin:
 
         ax = fig.add_subplot(111)
 
-        # Theme-aware colors
+        # Theme-aware colorsyle
         is_dark = getattr(self, 'current_theme', 'Light') == 'Dark'
         text_color = '#e6edf3' if is_dark else '#1f2328'
         bg_color = '#0d1117' if is_dark else '#ffffff'
