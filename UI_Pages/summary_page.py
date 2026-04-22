@@ -1,22 +1,28 @@
+import csv
 from datetime import datetime
 
 import numpy as np
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton,
-    QWidget, QFrame, QSizePolicy, QMessageBox, QFileDialog,
+    QFileDialog,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 
 from ..core.helpers import make_scroll
 
 
 class SummaryPageMixin:
-    """Mixin: Summary dashboard page – cards, metrics, report export."""
+    """Mixin: Summary dashboard page - cards, metrics, report export."""
 
-    # -------------------------
-    # Build Summary Page UI
-    # -------------------------
     def build_summary_page(self):
         outer = QWidget()
         outer.setStyleSheet("background: transparent;")
@@ -53,10 +59,6 @@ class SummaryPageMixin:
 
         layout = QVBoxLayout(self.page_summary)
         layout.addWidget(outer)
-
-    # =========================================================
-    # Summary Logic
-    # =========================================================
 
     def _clear_layout_widgets(self, layout):
         while layout.count():
@@ -97,13 +99,13 @@ class SummaryPageMixin:
             }
 
         processed_data = []
-        for y in values:
-            clamped_y = max(y, y_min_limit)
-            clamped_y = min(clamped_y, y_max_limit)
-            processed_data.append(clamped_y)
+        for value in values:
+            clamped_value = max(value, y_min_limit)
+            clamped_value = min(clamped_value, y_max_limit)
+            processed_data.append(clamped_value)
 
         if display_mode == "Cut_off beyond limit data":
-            data_to_report = [y for y in processed_data if (y_min_limit < y < y_max_limit)]
+            data_to_report = [value for value in processed_data if (y_min_limit < value < y_max_limit)]
         else:
             data_to_report = processed_data
 
@@ -150,7 +152,7 @@ class SummaryPageMixin:
             tm_stats = self._calc_summary_metrics(tm_data, display_mode, y_min_limit, y_max_limit)
             other_stats = self._calc_summary_metrics(other_data, display_mode, y_min_limit, y_max_limit)
 
-            summary = {
+            summaries.append({
                 "label": cat_label,
                 "comparison_mode": bool(other_stats["has_data"]),
                 "tm": tm_stats,
@@ -162,9 +164,7 @@ class SummaryPageMixin:
                 "std": tm_stats["std"],
                 "upper": tm_stats["upper"],
                 "has_data": tm_stats["has_data"],
-            }
-
-            summaries.append(summary)
+            })
 
         return summaries
 
@@ -272,60 +272,287 @@ class SummaryPageMixin:
         self.refresh_summary_page()
         self.tabs.setCurrentWidget(self.page_summary)
 
+    def _sanitize_report_name(self, value: str) -> str:
+        safe = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in (value or "").strip())
+        safe = safe.strip("_")
+        return safe or "report"
+
+    def _get_report_metadata(self):
+        cfg = self._get_active_config() if hasattr(self, "_get_active_config") else {}
+
+        categories = cfg.get("categories", [])
+        if isinstance(categories, dict):
+            selected_categories = [cat for cat, enabled in categories.items() if enabled]
+        elif isinstance(categories, list):
+            selected_categories = list(categories)
+        else:
+            selected_categories = self._get_selected_categories_for_graph()
+
+        test_types = cfg.get("measure_cat", cfg.get("test_type", []))
+        if isinstance(test_types, dict):
+            selected_test_types = [name for name, enabled in test_types.items() if enabled]
+        elif isinstance(test_types, list):
+            selected_test_types = list(test_types)
+        else:
+            selected_test_types = []
+
+        return {
+            "recipe_name": getattr(self, "current_loaded_config_name", "") or "N/A",
+            "project_name": cfg.get("project_name", "") or "N/A",
+            "pin_fixture": cfg.get("pin_fixture", "") or "N/A",
+            "engineer": cfg.get("Engineer", "Unknown"),
+            "created_time": cfg.get("Created_time", "N/A"),
+            "data_file": getattr(self, "file_path", None) or cfg.get("file_path", "N/A"),
+            "display_mode": getattr(self, "display_mode", cfg.get("display_mode", "Display All_data")),
+            "y_axis_max": getattr(self, "y_max", cfg.get("yAxis_max", cfg.get("y_axis_max", "N/A"))),
+            "open_circuit": float(getattr(self, "open_circuit", cfg.get("open_circuit", cfg.get("y_max", 3000))) or 0),
+            "close_circuit": float(getattr(self, "close_circuit", cfg.get("close_circuit", cfg.get("y_min", 0))) or 0),
+            "categories": selected_categories,
+            "test_types": selected_test_types,
+        }
+
+    def _build_report_yield_snapshot(self, key: str, y_min_limit: float, y_max_limit: float):
+        results = []
+        total_all = 0
+        pass_all = 0
+        fail_all = 0
+
+        selected_categories = self._get_selected_categories_for_graph()
+        if not selected_categories:
+            inferred_steps = sorted(self.grouped_data.keys())
+            selected_categories = [self.reverse_category_map.get(step, str(step)) for step in inferred_steps]
+
+        for category in selected_categories:
+            cat_value, cat_label = self._resolve_category_info(category)
+            data_dict = self.grouped_data.get(cat_value, {}) if cat_value is not None else {}
+            values = data_dict.get(key, [])
+            yield_info = self._calc_yield_for_category(values, y_min_limit, y_max_limit)
+            yield_info["label"] = cat_label
+            results.append(yield_info)
+            total_all += yield_info["total"]
+            pass_all += yield_info["pass"]
+            fail_all += yield_info["fail"]
+
+        overall_pct = (pass_all / total_all * 100.0) if total_all > 0 else 0.0
+        return results, {
+            "total": total_all,
+            "pass": pass_all,
+            "fail": fail_all,
+            "yield_pct": overall_pct,
+            "has_data": total_all > 0,
+        }
+
+    def _build_report_export_data(self):
+        metadata = self._get_report_metadata()
+        config_name = metadata["recipe_name"]
+        operator_name = self.operator_name.text().strip() if hasattr(self, "operator_name") else ""
+        summaries = self._build_summary_stats()
+        if not summaries:
+            return None
+
+        end_time = datetime.now().strftime("%Y-%m-%d / %H:%M:%S")
+        timer_string = f"{self.days:02d}Days-{self.hours:02d}Hr-{self.minutes:02d}Min-{self.seconds:02d}Sec"
+        tm_yield_rows, tm_overall_yield = self._build_report_yield_snapshot(
+            "resistance_tm",
+            metadata["close_circuit"],
+            metadata["open_circuit"],
+        )
+
+        has_other = any(summary.get("comparison_mode", False) for summary in summaries)
+        other_yield_rows = []
+        other_overall_yield = None
+        if has_other:
+            other_yield_rows, other_overall_yield = self._build_report_yield_snapshot(
+                "resistance_other",
+                metadata["close_circuit"],
+                metadata["open_circuit"],
+            )
+
+        return {
+            "metadata": metadata,
+            "config_name": config_name,
+            "operator_name": operator_name,
+            "summaries": summaries,
+            "end_time": end_time,
+            "timer_string": timer_string,
+            "tm_yield_rows": tm_yield_rows,
+            "tm_overall_yield": tm_overall_yield,
+            "other_yield_rows": other_yield_rows,
+            "other_overall_yield": other_overall_yield,
+        }
+
+    def _build_report_text(self, report_data: dict) -> str:
+        metadata = report_data["metadata"]
+        config_name = report_data["config_name"]
+        operator_name = report_data["operator_name"]
+        summaries = report_data["summaries"]
+        tm_yield_rows = report_data["tm_yield_rows"]
+        tm_overall_yield = report_data["tm_overall_yield"]
+        other_yield_rows = report_data["other_yield_rows"]
+        other_overall_yield = report_data["other_overall_yield"]
+
+        report_lines = [
+            "POGO PIN TEST SUMMARY REPORT",
+            "=" * 72,
+            "",
+            "TEST INFORMATION",
+            "-" * 72,
+            f"Recipe Name      : {config_name}",
+            f"Project Number   : {metadata['project_name']}",
+            f"Pin Fixture      : {metadata['pin_fixture']}",
+            f"Operator         : {operator_name or 'N/A'}",
+            f"Engineer         : {metadata['engineer']}",
+            f"Recipe Created   : {metadata['created_time']}",
+            f"Source Data File : {metadata['data_file']}",
+            f"Display Mode     : {metadata['display_mode']}",
+            f"Max R-Value      : {metadata['y_axis_max']} mΩ",
+            f"Open Circuit     : {metadata['open_circuit']:.2f} mΩ",
+            f"Close Circuit    : {metadata['close_circuit']:.2f} mΩ",
+            f"Categories       : {', '.join(metadata['categories']) if metadata['categories'] else 'All detected categories'}",
+            f"Test Types       : {', '.join(metadata['test_types']) if metadata['test_types'] else 'N/A'}",
+            f"Started Time     : {getattr(self, 'start_time', '') or 'N/A'}",
+            f"Finished Time    : {report_data['end_time']}",
+            f"Total Duration   : {report_data['timer_string']}",
+            "",
+            "CATEGORY RESULTS",
+            "-" * 72,
+        ]
+
+        for summary in summaries:
+            report_lines.append(f"Category: {summary['label']}")
+            report_lines.append("~" * 72)
+
+            if summary.get("comparison_mode", False):
+                tm = summary.get("tm", {})
+                other = summary.get("other", {})
+                report_lines.append("Comparison Mode  : TestMax Pin vs Other Pin")
+                report_lines.append(f"Sample Count     : TM={tm.get('count', 0):,} | Other={other.get('count', 0):,}")
+                report_lines.append(f"TM Minimum       : {tm.get('min', 0.0):.2f} mΩ")
+                report_lines.append(f"TM Maximum       : {tm.get('max', 0.0):.2f} mΩ")
+                report_lines.append(f"TM Average       : {tm.get('avg', 0.0):.2f} mΩ")
+                report_lines.append(f"TM Std. Dev.     : {tm.get('std', 0.0):.2f} mΩ")
+                report_lines.append(f"TM Upper Limit   : {tm.get('upper', 0.0):.2f} mΩ")
+                report_lines.append(f"Other Minimum    : {other.get('min', 0.0):.2f} mΩ")
+                report_lines.append(f"Other Maximum    : {other.get('max', 0.0):.2f} mΩ")
+                report_lines.append(f"Other Average    : {other.get('avg', 0.0):.2f} mΩ")
+                report_lines.append(f"Other Std. Dev.  : {other.get('std', 0.0):.2f} mΩ")
+                report_lines.append(f"Other Upper Limit: {other.get('upper', 0.0):.2f} mΩ")
+            elif summary["has_data"]:
+                report_lines.append("Comparison Mode  : TestMax Pin only")
+                report_lines.append(f"Sample Count     : {summary['count']:,}")
+                report_lines.append(f"Minimum R-Value  : {summary['min']:.2f} mΩ")
+                report_lines.append(f"Maximum R-Value  : {summary['max']:.2f} mΩ")
+                report_lines.append(f"Average R-Value  : {summary['avg']:.2f} mΩ")
+                report_lines.append(f"Upper Limit      : {summary['upper']:.2f} mΩ")
+                report_lines.append(f"Std. Deviation   : {summary['std']:.2f} mΩ")
+            else:
+                report_lines.append("No test data available for this category.")
+
+            report_lines.append("")
+
+        report_lines.append("OVERALL YIELD SUMMARY")
+        report_lines.append("-" * 72)
+        report_lines.append(
+            f"TestMax Pin      : {tm_overall_yield['yield_pct']:.1f}%  |  Total={tm_overall_yield['total']:,}  Pass={tm_overall_yield['pass']:,}  Fail={tm_overall_yield['fail']:,}"
+        )
+        for row in tm_yield_rows:
+            report_lines.append(
+                f"  {row['label']}: {row['yield_pct']:.1f}%  |  Total={row['total']:,}  Pass={row['pass']:,}  Fail={row['fail']:,}"
+            )
+
+        if other_overall_yield is not None:
+            report_lines.append("")
+            report_lines.append(
+                f"Other Pin        : {other_overall_yield['yield_pct']:.1f}%  |  Total={other_overall_yield['total']:,}  Pass={other_overall_yield['pass']:,}  Fail={other_overall_yield['fail']:,}"
+            )
+            for row in other_yield_rows:
+                report_lines.append(
+                    f"  {row['label']}: {row['yield_pct']:.1f}%  |  Total={row['total']:,}  Pass={row['pass']:,}  Fail={row['fail']:,}"
+                )
+
+        report_lines.append("")
+        report_lines.append("End of report.")
+        return "\n".join(report_lines) + "\n"
+
+    def _build_report_csv_rows(self, report_data: dict):
+        summaries = report_data["summaries"]
+        tm_yield_rows = report_data["tm_yield_rows"]
+        tm_overall_yield = report_data["tm_overall_yield"]
+        other_yield_rows = report_data["other_yield_rows"]
+        other_overall_yield = report_data["other_overall_yield"]
+
+        rows = [
+            ["Category", "Mode", "Count", "Minimum (mΩ)", "Maximum (mΩ)", "Average (mΩ)", "Std Dev (mΩ)", "Upper Limit (mΩ)", "Pin Source"],
+        ]
+
+        for summary in summaries:
+            if summary.get("comparison_mode", False):
+                tm = summary.get("tm", {})
+                other = summary.get("other", {})
+                rows.append([summary["label"], "Comparison", tm.get("count", 0), f"{tm.get('min', 0.0):.2f}", f"{tm.get('max', 0.0):.2f}", f"{tm.get('avg', 0.0):.2f}", f"{tm.get('std', 0.0):.2f}", f"{tm.get('upper', 0.0):.2f}", "TestMax Pin"])
+                rows.append([summary["label"], "Comparison", other.get("count", 0), f"{other.get('min', 0.0):.2f}", f"{other.get('max', 0.0):.2f}", f"{other.get('avg', 0.0):.2f}", f"{other.get('std', 0.0):.2f}", f"{other.get('upper', 0.0):.2f}", "Other Pin"])
+            elif summary["has_data"]:
+                rows.append([summary["label"], "TestMax only", summary["count"], f"{summary['min']:.2f}", f"{summary['max']:.2f}", f"{summary['avg']:.2f}", f"{summary['std']:.2f}", f"{summary['upper']:.2f}", "TestMax Pin"])
+            else:
+                rows.append([summary["label"], "No data", 0, "", "", "", "", "", "TestMax Pin"])
+
+        rows.extend([
+            [],
+            ["Yield", "Scope", "Yield %", "Total", "Pass", "Fail"],
+            ["Yield", "TestMax Pin Overall", f"{tm_overall_yield['yield_pct']:.1f}", tm_overall_yield["total"], tm_overall_yield["pass"], tm_overall_yield["fail"]],
+        ])
+        for row in tm_yield_rows:
+            rows.append(["Yield", row["label"], f"{row['yield_pct']:.1f}", row["total"], row["pass"], row["fail"]])
+
+        if other_overall_yield is not None:
+            rows.append(["Yield", "Other Pin Overall", f"{other_overall_yield['yield_pct']:.1f}", other_overall_yield["total"], other_overall_yield["pass"], other_overall_yield["fail"]])
+            for row in other_yield_rows:
+                rows.append(["Yield", row["label"] + " (Other Pin)", f"{row['yield_pct']:.1f}", row["total"], row["pass"], row["fail"]])
+
+        return rows
+
     def report_summary(self):
         if not getattr(self, "current_loaded_config_name", ""):
             QMessageBox.warning(self, "Warning", "No configuration loaded in Operator mode.")
             return
 
-        config_name = self.current_loaded_config_name
-        operator_name = self.operator_name.text().strip() if hasattr(self, "operator_name") else ""
-
-        summaries = self._build_summary_stats()
-
-        if not summaries:
+        report_data = self._build_report_export_data()
+        if not report_data:
             QMessageBox.warning(self, "Warning", "No category is selected to generate report.")
             return
 
-        report_content = f"Test Summary Report of {config_name}\n\n"
+        txt_content = self._build_report_text(report_data)
+        csv_rows = self._build_report_csv_rows(report_data)
 
-        for summary in summaries:
-            report_content += f"Category : {summary['label']}\n"
-            report_content += "=====================================\n"
-
-            if summary["has_data"]:
-                report_content += f"Test Count : {summary['count']}\n"
-                report_content += f"Minimum R-Value: {summary['min']:.2f} mΩ\n"
-                report_content += f"maximum R-value: {summary['max']:.2f} mΩ\n"
-                report_content += f"Average R-value: {summary['avg']:.2f} mΩ\n"
-                report_content += f"Upper_limit : {summary['upper']:.2f} mΩ\n"
-                report_content += f"Standard Deviation: {summary['std']:.2f} mΩ\n"
-            else:
-                report_content += "No data available for the category.\n"
-
-            report_content += "\n\n"
-
-        report_content += f"Test is done by '{operator_name}'"
-        report_content += f"\nStarted Time: {getattr(self, 'start_time', '')} "
-        end_time = datetime.now().strftime("%Y-%m-%d / %H:%M:%S")
-        report_content += f"\nFinished time: {end_time}"
-
-        timer_string = f"{self.days:02d}Days-{self.hours:02d}Hr-{self.minutes:02d}Min-{self.seconds:02d}Sec"
-        report_content += f"\nTotal time: {timer_string}"
-
-        default_filename = f"{config_name}_summary_report.txt"
-        file_path, _ = QFileDialog.getSaveFileName(
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_recipe_name = self._sanitize_report_name(report_data["config_name"])
+        safe_operator_name = self._sanitize_report_name(report_data["operator_name"] or "operator")
+        default_filename = f"{safe_recipe_name}_{safe_operator_name}_{timestamp}_summary_report.txt"
+        file_path, selected_filter = QFileDialog.getSaveFileName(
             self,
             "Save Summary Report",
             default_filename,
-            "Text files (*.txt);;All Files (*)"
+            "Text files (*.txt);;CSV files (*.csv);;All Files (*)"
         )
 
         if not file_path:
             return
 
+        is_csv = selected_filter.startswith("CSV files") or file_path.lower().endswith(".csv")
+        if is_csv and not file_path.lower().endswith(".csv"):
+            file_path += ".csv"
+        if not is_csv and not file_path.lower().endswith(".txt") and selected_filter.startswith("Text files"):
+            file_path += ".txt"
+
         try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(report_content)
-            QMessageBox.information(self, "Success", f"Summary_report saved to \n{file_path}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to write report_summary file: {e}")
+            if is_csv:
+                with open(file_path, "w", encoding="utf-8", newline="") as file_obj:
+                    writer = csv.writer(file_obj)
+                    writer.writerows(csv_rows)
+                QMessageBox.information(self, "Success", f"Summary CSV exported to\n{file_path}")
+            else:
+                with open(file_path, "w", encoding="utf-8") as file_obj:
+                    file_obj.write(txt_content)
+                QMessageBox.information(self, "Success", f"Summary report saved to\n{file_path}")
+        except Exception as error:
+            QMessageBox.critical(self, "Error", f"Failed to save summary report: {error}")

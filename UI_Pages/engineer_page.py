@@ -110,27 +110,21 @@ class EngineerPageMixin:
         gb_graph = QGroupBox("Graph Setting")
         gg = QGridLayout(gb_graph)
 
-        gg.addWidget(QLabel("Full Scale:"), 0, 0)
-        self.ed_window_size = QLineEdit("10")
-        self.ed_window_size.setMaximumWidth(90)
-        gg.addWidget(self.ed_window_size, 0, 1)
-        gg.addWidget(QLabel("(X-axis)"), 0, 2)
-
-        gg.addWidget(QLabel("Max R-Value(mΩ):"), 1, 0)
+        gg.addWidget(QLabel("Max R-Value(mΩ):"), 0, 0)
         self.ed_yaxis_max = QLineEdit("20")
         self.ed_yaxis_max.setMaximumWidth(90)
-        gg.addWidget(self.ed_yaxis_max, 1, 1)
-        gg.addWidget(QLabel("(Y-axis)"), 1, 2)
+        gg.addWidget(self.ed_yaxis_max, 0, 1)
+        gg.addWidget(QLabel("(Y-axis)"), 0, 2)
 
-        gg.addWidget(QLabel("Open-Circuit(mΩ):"), 2, 0)
+        gg.addWidget(QLabel("Open-Circuit(mΩ):"), 1, 0)
         self.ed_open_circuit = QLineEdit("3000")
         self.ed_open_circuit.setMaximumWidth(90)
-        gg.addWidget(self.ed_open_circuit, 2, 1)
+        gg.addWidget(self.ed_open_circuit, 1, 1)
 
-        gg.addWidget(QLabel("Close-Circuit(mΩ):"), 3, 0)
+        gg.addWidget(QLabel("Close-Circuit(mΩ):"), 2, 0)
         self.ed_close_circuit = QLineEdit("0")
         self.ed_close_circuit.setMaximumWidth(90)
-        gg.addWidget(self.ed_close_circuit, 3, 1)
+        gg.addWidget(self.ed_close_circuit, 2, 1)
 
         # Categories
         gb_cat = QGroupBox("Categories")
@@ -145,7 +139,7 @@ class EngineerPageMixin:
             r, c = divmod(i, 3)
             gc.addWidget(cb, r, c)
 
-        gg.addWidget(gb_cat, 4, 0, 1, 3)
+        gg.addWidget(gb_cat, 3, 0, 1, 3)
         right_l.addWidget(gb_graph)
 
         # Save Test-config
@@ -226,7 +220,6 @@ class EngineerPageMixin:
 
         self.rb_all_data.setChecked(True)
 
-        self.ed_window_size.setText("10")
         self.ed_yaxis_max.setText("20")
         self.ed_open_circuit.setText("3000")
         self.ed_close_circuit.setText("0")

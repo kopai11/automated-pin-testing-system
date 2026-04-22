@@ -14,7 +14,7 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as Navigation
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox,
-    QWidget, QTabWidget, QStackedLayout, QFileDialog,
+    QWidget, QTabWidget, QStackedLayout, QFileDialog, QSpinBox,
 )
 
 from ..core.helpers import warn, make_scroll
@@ -50,6 +50,10 @@ class GraphPageMixin:
         self.btn_continue.setEnabled(False)
         self.chk_show_all_data = QCheckBox("Show All Test Data")
         self.chk_show_all_data.setChecked(False)
+        self.graph_window_spin = QSpinBox()
+        self.graph_window_spin.setRange(10, 100000)
+        self.graph_window_spin.setValue(30)
+        self.graph_window_spin.setToolTip("Number of last data points to display (Full-Scale)")
         self.lbl_start_time = QLabel("")
         self.lbl_timer = QLabel("")
         self.lbl_operator = QLabel("")
@@ -59,6 +63,8 @@ class GraphPageMixin:
         top_row.addWidget(self.btn_manual_update)
         top_row.addWidget(self.btn_freeze)
         top_row.addWidget(self.btn_continue)
+        top_row.addWidget(QLabel("Full-Scale:"))
+        top_row.addWidget(self.graph_window_spin)
         top_row.addWidget(self.chk_show_all_data)
         top_row.addStretch(1)
         top_row.addWidget(self.lbl_freeze_status)
@@ -104,6 +110,7 @@ class GraphPageMixin:
         self.btn_freeze.clicked.connect(self.freeze_graph)
         self.btn_continue.clicked.connect(self.continue_graph)
         self.chk_show_all_data.stateChanged.connect(self.on_show_all_data_changed)
+        self.graph_window_spin.valueChanged.connect(self.update_graph)
         
         # Cache for full-history data (loaded on-demand when Show All Data is toggled)
         self._full_history_cache = None
@@ -284,7 +291,6 @@ class GraphPageMixin:
     def _get_graph_params_from_recipe(self):
         cfg = self._get_active_config()
 
-        self.window_size = int(cfg.get("window_size", self.window_size or 10))
         self.y_max = int(cfg.get("yAxis_max", cfg.get("y_axis_max", self.y_max or 20)))
 
         self.open_circuit = int(cfg.get("open_circuit", cfg.get("y_max", 3000)))
@@ -504,8 +510,6 @@ class GraphPageMixin:
                     self._append_step_point_to_store(step, parsed, temp_cache)
             self._full_history_cache = temp_cache
             self._full_history_cache_valid = True
-            total_points = sum(len(v["resistance_tm"]) for v in temp_cache.values())
-            self.append_status(f"✓ Full history loaded: {total_points:,} total points cached for display.")
         except Exception as e:
             self.append_status(f"Full history cache load failed: {e}")
         QTimer.singleShot(0, self.update_graph)
@@ -586,7 +590,7 @@ class GraphPageMixin:
                     return
                 selected_categories = [self.reverse_category_map.get(s, str(s)) for s in inferred_steps]
 
-            window_size = int(getattr(self, "window_size", 10) or 10)
+            window_size = self.graph_window_spin.value() if hasattr(self, "graph_window_spin") else 30
 
             display_mode = getattr(self, "display_mode", "Display All_data")
             y_min_limit = float(getattr(self, "close_circuit", 0))
@@ -627,15 +631,6 @@ class GraphPageMixin:
 
                 if not cur_vals_tm or not res_vals_tm:
                     continue
-                
-                # Apply downsampling for very large datasets (>5000 points) when showing all
-                if show_all and len(cur_vals_tm) > 5000:
-                    ds_factor = len(cur_vals_tm) // 5000
-                    cur_vals_tm = cur_vals_tm[::ds_factor]
-                    res_vals_tm = res_vals_tm[::ds_factor]
-                    cur_vals_other = cur_vals_other[::ds_factor] if cur_vals_other else []
-                    res_vals_other = res_vals_other[::ds_factor] if res_vals_other else []
-                    force_vals = force_vals[::ds_factor] if force_vals else []
 
                 rendered_any_page = True
 
@@ -761,7 +756,6 @@ class GraphPageMixin:
     def _reload_full_file(self):
         self.grouped_data = self._new_grouped_store()
         self._last_step = None
-
         with open(self.file_path, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 parsed = self._parse_measure_line(line)

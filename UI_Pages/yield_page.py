@@ -34,7 +34,7 @@ class YieldPageMixin:
 
         header_row.addStretch(1)
 
-        header_row.addWidget(QLabel("Data Source:"))
+        header_row.addWidget(QLabel("Pin Source:"))
         self.yield_source_combo = QComboBox()
         self.yield_source_combo.addItems(["TestMax Pin", "Other Pin"])
         self.yield_source_combo.setMinimumWidth(140)

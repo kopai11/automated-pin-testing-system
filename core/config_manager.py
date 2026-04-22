@@ -49,7 +49,6 @@ class ConfigMixin:
         else:
             selected_types = []
 
-        window_size = config.get("window_size", "N/A")
         y_max = config.get("yAxis_max", config.get("y_axis_max", "N/A"))
         open_circuit = config.get("open_circuit", config.get("y_max", "N/A"))
         close_circuit = config.get("close_circuit", config.get("y_min", "N/A"))
@@ -60,7 +59,6 @@ class ConfigMixin:
         details.append(f"\nData File: {config.get('file_path','N/A')}")
 
         details.append("\nGraph Settings:")
-        details.append(f"  • Full Scale: {window_size} data points (X-axis)")
         details.append(f"  • Max R-Value: {y_max} mΩ (Y-axis)")
         details.append(f"  • Open-Circuit: {open_circuit} mΩ")
         details.append(f"  • Close-Circuit: {close_circuit} mΩ")
@@ -105,7 +103,6 @@ class ConfigMixin:
             "pin_fixture": self.ed_pin_fixture.text().strip(),
             "measure_cat": self._get_selected_test_types(),
             "display_mode": self._get_display_mode_text(),
-            "window_size": int(self.ed_window_size.text() or "10"),
             "yAxis_max": int(self.ed_yaxis_max.text() or "20"),
             "open_circuit": int(self.ed_open_circuit.text() or "3000"),
             "close_circuit": int(self.ed_close_circuit.text() or "0"),
@@ -156,7 +153,6 @@ class ConfigMixin:
         else:
             selected_types = []
 
-        window_size = config.get("window_size", "N/A")
         y_axis_max  = config.get("yAxis_max", config.get("y_axis_max", "N/A"))
         open_circ   = config.get("open_circuit", config.get("y_max", "N/A"))
         close_circ  = config.get("close_circuit", config.get("y_min", "N/A"))
@@ -173,7 +169,6 @@ class ConfigMixin:
         details += f"Pin_fixture: {pin_fixture}\n"
 
         details += "\nGraph Settings:\n"
-        details += f"  • Fill Scale: {window_size} data points (X-axis)\n"
         details += f"  • R-value Maximum: {y_axis_max} mΩ (Y-axis)\n"
         details += f"  • Open-Circuit: {open_circ} mΩ\n"
         details += f"  • Close-Circuit: {close_circ} mΩ\n"
@@ -235,7 +230,6 @@ class ConfigMixin:
         self.rb_all_data.setChecked(mode == "Display All_data")
         self.rb_cutoff.setChecked(mode != "Display All_data")
 
-        self.ed_window_size.setText(str(cfg.get("window_size", 10)))
         self.ed_yaxis_max.setText(str(cfg.get("yAxis_max", 20)))
         self.ed_open_circuit.setText(str(cfg.get("open_circuit", 3000)))
         self.ed_close_circuit.setText(str(cfg.get("close_circuit", 0)))
