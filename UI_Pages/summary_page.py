@@ -1,4 +1,5 @@
 import csv
+import os
 from datetime import datetime
 
 import numpy as np
@@ -381,97 +382,118 @@ class SummaryPageMixin:
             "other_overall_yield": other_overall_yield,
         }
 
+    def _calc_steady_state_tm_yield(self, start_index: int = 4000):
+        y_min_limit = float(getattr(self, "close_circuit", 0))
+        y_max_limit = float(getattr(self, "open_circuit", 3000))
+
+        selected_categories = self._get_selected_categories_for_graph()
+        if not selected_categories:
+            inferred_steps = sorted(self.grouped_data.keys())
+            selected_categories = [self.reverse_category_map.get(step, str(step)) for step in inferred_steps]
+
+        total_all = 0
+        pass_all = 0
+        fail_all = 0
+
+        for category in selected_categories:
+            cat_value, _ = self._resolve_category_info(category)
+            data_dict = self.grouped_data.get(cat_value, {}) if cat_value is not None else {}
+            tm_values = data_dict.get("resistance_tm", [])
+            if len(tm_values) <= start_index:
+                continue
+
+            steady_values = tm_values[start_index:]
+            yield_info = self._calc_yield_for_category(steady_values, y_min_limit, y_max_limit)
+            total_all += yield_info["total"]
+            pass_all += yield_info["pass"]
+            fail_all += yield_info["fail"]
+
+        yield_pct = (pass_all / total_all * 100.0) if total_all > 0 else 0.0
+        return {
+            "total": total_all,
+            "pass": pass_all,
+            "fail": fail_all,
+            "yield_pct": yield_pct,
+            "available": total_all > 0,
+        }
+
     def _build_report_text(self, report_data: dict) -> str:
         metadata = report_data["metadata"]
         config_name = report_data["config_name"]
-        operator_name = report_data["operator_name"]
         summaries = report_data["summaries"]
-        tm_yield_rows = report_data["tm_yield_rows"]
         tm_overall_yield = report_data["tm_overall_yield"]
-        other_yield_rows = report_data["other_yield_rows"]
-        other_overall_yield = report_data["other_overall_yield"]
+
+        def status_from_yield(yield_pct: float) -> str:
+            if yield_pct >= 95.0:
+                return "PASS"
+            if yield_pct >= 85.0:
+                return "MONITOR"
+            return "STABILIZING"
+
+        def fixed_col(value, width: int) -> str:
+            text = str(value)
+            if len(text) > width:
+                return text[: width - 3] + "..."
+            return text.ljust(width)
+
+        steady_state = self._calc_steady_state_tm_yield(start_index=4000)
+
+        counts = [s["count"] for s in summaries if s.get("has_data")]
+        weighted_avg = 0.0
+        total_count = sum(counts)
+        if total_count > 0:
+            weighted_avg = sum((s["avg"] * s["count"]) for s in summaries if s.get("has_data")) / total_count
+
+        resistance_status = "OPTIMAL" if metadata["close_circuit"] <= weighted_avg <= metadata["open_circuit"] else "CHECK"
+        steady_value = f"{steady_state['yield_pct']:.1f}%"
+        if steady_state["available"]:
+            steady_value += f" (after 4k, n={steady_state['total']:,})"
+        else:
+            steady_value = "N/A (insufficient post-4k data)"
 
         report_lines = [
-            "POGO PIN TEST SUMMARY REPORT",
-            "=" * 72,
+            "POGO PIN DURABILITY TEST:",
+            "EXECUTIVE SUMMARY REPORT",
             "",
-            "TEST INFORMATION",
-            "-" * 72,
-            f"Recipe Name      : {config_name}",
-            f"Project Number   : {metadata['project_name']}",
-            f"Pin Fixture      : {metadata['pin_fixture']}",
-            f"Operator         : {operator_name or 'N/A'}",
-            f"Engineer         : {metadata['engineer']}",
-            f"Recipe Created   : {metadata['created_time']}",
-            f"Source Data File : {metadata['data_file']}",
-            f"Display Mode     : {metadata['display_mode']}",
-            f"Max R-Value      : {metadata['y_axis_max']} mΩ",
-            f"Open Circuit     : {metadata['open_circuit']:.2f} mΩ",
-            f"Close Circuit    : {metadata['close_circuit']:.2f} mΩ",
-            f"Categories       : {', '.join(metadata['categories']) if metadata['categories'] else 'All detected categories'}",
-            f"Test Types       : {', '.join(metadata['test_types']) if metadata['test_types'] else 'N/A'}",
-            f"Started Time     : {getattr(self, 'start_time', '') or 'N/A'}",
-            f"Finished Time    : {report_data['end_time']}",
-            f"Total Duration   : {report_data['timer_string']}",
+            f"Project : {metadata['project_name']}",
+            f"Date    : {datetime.now().strftime('%Y-%m-%d')}",
+            f"Engineer: {metadata['engineer']}",
+            f"Recipe  : {config_name}",
+            f"Mode    : {metadata['display_mode']}",
+            f"Period  : {getattr(self, 'start_time', '') or 'N/A'}  ->  {report_data['end_time']}",
+            f"Duration: {report_data['timer_string']}",
             "",
-            "CATEGORY RESULTS",
-            "-" * 72,
+            "-" * 95,
+            "1. EXECUTIVE OVERVIEW",
+            "-" * 95,
+            f"| {fixed_col('Metric', 36)} | {fixed_col('Value', 35)} | {fixed_col('Status', 14)} |",
+            "|" + "-" * 38 + "|" + "-" * 37 + "|" + "-" * 16 + "|",
+            f"| {fixed_col('Overall Test Yield', 36)} | {fixed_col(f"{tm_overall_yield['yield_pct']:.1f}% (Total={tm_overall_yield['total']:,})", 35)} | {fixed_col(status_from_yield(tm_overall_yield['yield_pct']), 14)} |",
+            f"| {fixed_col('Steady-State Yield (After 4k cycles)', 36)} | {fixed_col(steady_value, 35)} | {fixed_col(status_from_yield(steady_state['yield_pct']) if steady_state['available'] else 'N/A', 14)} |",
+            f"| {fixed_col('Final Stable Resistance', 36)} | {fixed_col(f"{weighted_avg:.2f} mOhm", 35)} | {fixed_col(resistance_status, 14)} |",
+            "",
+            "2. DETAILED CATEGORY DATA",
+            "-" * 95,
+            f"| {fixed_col('Category', 24)} | {fixed_col('Min (mOhm)', 12)} | {fixed_col('Max (mOhm)', 12)} | {fixed_col('Avg (mOhm)', 12)} | {fixed_col('Std Dev (mOhm)', 15)} |",
+            "|" + "-" * 26 + "|" + "-" * 14 + "|" + "-" * 14 + "|" + "-" * 14 + "|" + "-" * 17 + "|",
         ]
 
         for summary in summaries:
-            report_lines.append(f"Category: {summary['label']}")
-            report_lines.append("~" * 72)
-
-            if summary.get("comparison_mode", False):
-                tm = summary.get("tm", {})
-                other = summary.get("other", {})
-                report_lines.append("Comparison Mode  : TestMax Pin vs Other Pin")
-                report_lines.append(f"Sample Count     : TM={tm.get('count', 0):,} | Other={other.get('count', 0):,}")
-                report_lines.append(f"TM Minimum       : {tm.get('min', 0.0):.2f} mΩ")
-                report_lines.append(f"TM Maximum       : {tm.get('max', 0.0):.2f} mΩ")
-                report_lines.append(f"TM Average       : {tm.get('avg', 0.0):.2f} mΩ")
-                report_lines.append(f"TM Std. Dev.     : {tm.get('std', 0.0):.2f} mΩ")
-                report_lines.append(f"TM Upper Limit   : {tm.get('upper', 0.0):.2f} mΩ")
-                report_lines.append(f"Other Minimum    : {other.get('min', 0.0):.2f} mΩ")
-                report_lines.append(f"Other Maximum    : {other.get('max', 0.0):.2f} mΩ")
-                report_lines.append(f"Other Average    : {other.get('avg', 0.0):.2f} mΩ")
-                report_lines.append(f"Other Std. Dev.  : {other.get('std', 0.0):.2f} mΩ")
-                report_lines.append(f"Other Upper Limit: {other.get('upper', 0.0):.2f} mΩ")
-            elif summary["has_data"]:
-                report_lines.append("Comparison Mode  : TestMax Pin only")
-                report_lines.append(f"Sample Count     : {summary['count']:,}")
-                report_lines.append(f"Minimum R-Value  : {summary['min']:.2f} mΩ")
-                report_lines.append(f"Maximum R-Value  : {summary['max']:.2f} mΩ")
-                report_lines.append(f"Average R-Value  : {summary['avg']:.2f} mΩ")
-                report_lines.append(f"Upper Limit      : {summary['upper']:.2f} mΩ")
-                report_lines.append(f"Std. Deviation   : {summary['std']:.2f} mΩ")
-            else:
-                report_lines.append("No test data available for this category.")
-
-            report_lines.append("")
-
-        report_lines.append("OVERALL YIELD SUMMARY")
-        report_lines.append("-" * 72)
-        report_lines.append(
-            f"TestMax Pin      : {tm_overall_yield['yield_pct']:.1f}%  |  Total={tm_overall_yield['total']:,}  Pass={tm_overall_yield['pass']:,}  Fail={tm_overall_yield['fail']:,}"
-        )
-        for row in tm_yield_rows:
-            report_lines.append(
-                f"  {row['label']}: {row['yield_pct']:.1f}%  |  Total={row['total']:,}  Pass={row['pass']:,}  Fail={row['fail']:,}"
-            )
-
-        if other_overall_yield is not None:
-            report_lines.append("")
-            report_lines.append(
-                f"Other Pin        : {other_overall_yield['yield_pct']:.1f}%  |  Total={other_overall_yield['total']:,}  Pass={other_overall_yield['pass']:,}  Fail={other_overall_yield['fail']:,}"
-            )
-            for row in other_yield_rows:
+            if summary.get("has_data"):
                 report_lines.append(
-                    f"  {row['label']}: {row['yield_pct']:.1f}%  |  Total={row['total']:,}  Pass={row['pass']:,}  Fail={row['fail']:,}"
+                    f"| {fixed_col(summary['label'], 24)} | {fixed_col(f"{summary['min']:.2f}", 12)} | {fixed_col(f"{summary['max']:.2f}", 12)} | {fixed_col(f"{summary['avg']:.2f}", 12)} | {fixed_col(f"{summary['std']:.2f}", 15)} |"
+                )
+            else:
+                report_lines.append(
+                    f"| {fixed_col(summary['label'], 24)} | {fixed_col('N/A', 12)} | {fixed_col('N/A', 12)} | {fixed_col('N/A', 12)} | {fixed_col('N/A', 15)} |"
                 )
 
-        report_lines.append("")
-        report_lines.append("End of report.")
+        report_lines.extend([
+            "",
+            f"Source Data File: {metadata['data_file']}",
+            "End of Executive Report. Use CSV export for full data handling in Excel.",
+        ])
+
         return "\n".join(report_lines) + "\n"
 
     def _build_report_csv_rows(self, report_data: dict):
@@ -527,26 +549,52 @@ class SummaryPageMixin:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_recipe_name = self._sanitize_report_name(report_data["config_name"])
         safe_operator_name = self._sanitize_report_name(report_data["operator_name"] or "operator")
-        default_filename = f"{safe_recipe_name}_{safe_operator_name}_{timestamp}_summary_report.txt"
-        file_path, selected_filter = QFileDialog.getSaveFileName(
+
+        format_dialog = QMessageBox(self)
+        format_dialog.setWindowTitle("Choose Report Format")
+        format_dialog.setText("Choose (.txt) for Docs or (.csv) for Excel:")
+
+        btn_txt = format_dialog.addButton(".txt", QMessageBox.AcceptRole)
+        btn_csv = format_dialog.addButton(".csv", QMessageBox.AcceptRole)
+        btn_cancel = format_dialog.addButton(QMessageBox.Cancel)
+        format_dialog.setDefaultButton(btn_txt)
+        format_dialog.exec()
+
+        clicked = format_dialog.clickedButton()
+        if clicked == btn_cancel or clicked is None:
+            return
+
+        is_csv = clicked == btn_csv
+        report_dir = getattr(
+            self,
+            "report_save_folder",
+            r"C:\Users\HDD 205\Desktop\Pogo_Pin Quality_Test_ Data\Report",
+        )
+        os.makedirs(report_dir, exist_ok=True)
+
+        ext = "csv" if is_csv else "txt"
+        default_filename = f"{safe_recipe_name}_{safe_operator_name}_{timestamp}_summary_report.{ext}"
+        default_path = os.path.join(report_dir, default_filename)
+        file_filter = "CSV files (*.csv)" if is_csv else "Text files (*.txt)"
+
+        file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Save Summary Report",
-            default_filename,
-            "Text files (*.txt);;CSV files (*.csv);;All Files (*)"
+            default_path,
+            file_filter,
         )
 
         if not file_path:
             return
 
-        is_csv = selected_filter.startswith("CSV files") or file_path.lower().endswith(".csv")
         if is_csv and not file_path.lower().endswith(".csv"):
             file_path += ".csv"
-        if not is_csv and not file_path.lower().endswith(".txt") and selected_filter.startswith("Text files"):
+        if not is_csv and not file_path.lower().endswith(".txt"):
             file_path += ".txt"
 
         try:
             if is_csv:
-                with open(file_path, "w", encoding="utf-8", newline="") as file_obj:
+                with open(file_path, "w", encoding="utf-8-sig", newline="") as file_obj:
                     writer = csv.writer(file_obj)
                     writer.writerows(csv_rows)
                 QMessageBox.information(self, "Success", f"Summary CSV exported to\n{file_path}")

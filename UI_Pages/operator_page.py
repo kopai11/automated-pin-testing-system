@@ -587,7 +587,7 @@ class OperatorPageMixin:
                 self.lbl_autosave.setStyleSheet("color: red; font-weight: 600;")
                 return
 
-            log_dir = os.path.join(self.default_save_folder, "Test data")
+            log_dir = self.default_save_folder
             os.makedirs(log_dir, exist_ok=True)
 
             safe_name = "".join(c for c in pin_name if c not in r'\/:*?"<>|').strip()

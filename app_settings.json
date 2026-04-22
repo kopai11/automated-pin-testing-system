@@ -5,6 +5,8 @@
   "graph_line_thickness": "Thin",
   "serial_auto_scroll": true,
   "serial_timestamp_lines": false,
-  "default_save_folder": "C:\\Users\\HDD 205\\Desktop\\Pogo_Pin Quality_Test_ Data",
+  "test_data_filepath": "C:/Users/HDD 205/Desktop/Pogo_Pin Quality_Test_ Data/Test data",
+  "report_data_filepath": "C:\\Users\\HDD 205\\Desktop\\Pogo_Pin Quality_Test_ Data\\Report",
+  "procedure_filepath": "C:/Users/HDD 205/Desktop/Pogo_Pin Quality_Test_ Data\\Test Procedure",
   "export_format": "CSV"
 }

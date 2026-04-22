@@ -21,7 +21,9 @@ _DEFAULTS = {
     "graph_line_thickness": "Medium",
     "serial_auto_scroll": True,
     "serial_timestamp_lines": False,
-    "default_save_folder": r"C:\Users\HDD 205\Desktop\Pogo_Pin Quality_Test_ Data",
+    "test_data_filepath": r"C:\Users\HDD 205\Desktop\Pogo_Pin Quality_Test_ Data",
+    "report_data_filepath": r"C:\Users\HDD 205\Desktop\Pogo_Pin Quality_Test_ Data\Report",
+    "procedure_filepath": r"C:\Users\HDD 205\Desktop\Pogo_Pin Quality_Test_ Data\Test Procedure",
     "export_format": "CSV",
 }
 
@@ -48,7 +50,9 @@ class AppSettingsPageMixin:
             "graph_line_thickness": self.graph_line_thickness,
             "serial_auto_scroll": self.serial_auto_scroll,
             "serial_timestamp_lines": self.serial_timestamp_lines,
-            "default_save_folder": self.default_save_folder,
+            "test_data_filepath": self.test_data_filepath,
+            "report_data_filepath": self.report_data_filepath,
+            "procedure_filepath": self.procedure_filepath,
             "export_format": self.export_format,
         }
         try:
@@ -60,8 +64,22 @@ class AppSettingsPageMixin:
     # ---- Init: load from disk, then fill gaps with defaults ----
     def _init_app_settings(self):
         saved = self._load_app_settings_from_disk()
+
+        # Backward compatibility: migrate old key names if present.
+        if "test_data_filepath" not in saved and "default_save_folder" in saved:
+            saved["test_data_filepath"] = saved.get("default_save_folder")
+        if "report_data_filepath" not in saved and "report_save_folder" in saved:
+            saved["report_data_filepath"] = saved.get("report_save_folder")
+        if "procedure_filepath" not in saved:
+            base = saved.get("test_data_filepath") or _DEFAULTS["test_data_filepath"]
+            saved["procedure_filepath"] = os.path.join(base, "Test Procedure")
+
         for key, default_val in _DEFAULTS.items():
             setattr(self, key, saved.get(key, default_val))
+
+        # Runtime aliases for existing code that may still reference old names.
+        self.default_save_folder = self.test_data_filepath
+        self.report_save_folder = self.report_data_filepath
 
     # ---- Theme ----
     def _set_theme(self, theme_name: str):
@@ -179,15 +197,23 @@ class AppSettingsPageMixin:
             if attempts >= 5:
                 QMessageBox.information(self, "Password Hint", "Hint: Password is Eight*8")
 
-    def _secure_browse_save_folder(self):
+    def _secure_browse_test_data_folder(self):
         if not self._check_settings_password():
             return
         self._unlock_data_controls()
-        self._browse_save_folder()
+        self._browse_test_data_folder()
+
+    def _secure_browse_report_folder(self):
+        if not self._check_settings_password():
+            return
+        self._unlock_data_controls()
+        self._browse_report_folder()
 
     def _unlock_data_controls(self):
         if hasattr(self, "ed_save_folder"):
             self.ed_save_folder.setEnabled(True)
+        if hasattr(self, "ed_procedure_folder"):
+            self.ed_procedure_folder.setEnabled(True)
         if hasattr(self, "cmb_export_format"):
             self.cmb_export_format.setEnabled(True)
             try:
@@ -195,31 +221,73 @@ class AppSettingsPageMixin:
             except Exception:
                 pass
             self.cmb_export_format.currentTextChanged.connect(self._on_export_format_changed)
+        if hasattr(self, "ed_report_folder"):
+            self.ed_report_folder.setEnabled(True)
         if hasattr(self, "btn_browse_folder"):
             self.btn_browse_folder.setText("📂 Browse")
+        if hasattr(self, "btn_browse_report_folder"):
+            self.btn_browse_report_folder.setText("📂 Browse")
+        if hasattr(self, "btn_browse_procedure_folder"):
+            self.btn_browse_procedure_folder.setText("📂 Browse")
         QTimer.singleShot(60000, self._lock_data_controls)
 
     def _lock_data_controls(self):
         self._settings_authenticated = False
         if hasattr(self, "ed_save_folder"):
             self.ed_save_folder.setEnabled(False)
+        if hasattr(self, "ed_procedure_folder"):
+            self.ed_procedure_folder.setEnabled(False)
         if hasattr(self, "cmb_export_format"):
             try:
                 self.cmb_export_format.currentTextChanged.disconnect(self._on_export_format_changed)
             except Exception:
                 pass
             self.cmb_export_format.setEnabled(False)
+        if hasattr(self, "ed_report_folder"):
+            self.ed_report_folder.setEnabled(False)
         if hasattr(self, "btn_browse_folder"):
             self.btn_browse_folder.setText("🔒 Browse")
+        if hasattr(self, "btn_browse_report_folder"):
+            self.btn_browse_report_folder.setText("🔒 Browse")
+        if hasattr(self, "btn_browse_procedure_folder"):
+            self.btn_browse_procedure_folder.setText("🔒 Browse")
 
-    def _browse_save_folder(self):
+    def _browse_test_data_folder(self):
         folder = QFileDialog.getExistingDirectory(
-            self, "Select Default Save Folder", self.default_save_folder
+            self, "Select Test Data Filepath", self.test_data_filepath
         )
         if folder:
+            self.test_data_filepath = folder
             self.default_save_folder = folder
             if hasattr(self, "ed_save_folder"):
                 self.ed_save_folder.setText(folder)
+            self._save_app_settings_to_disk()
+
+    def _secure_browse_procedure_folder(self):
+        if not self._check_settings_password():
+            return
+        self._unlock_data_controls()
+        self._browse_procedure_folder()
+
+    def _browse_procedure_folder(self):
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select Procedure Filepath", self.procedure_filepath
+        )
+        if folder:
+            self.procedure_filepath = folder
+            if hasattr(self, "ed_procedure_folder"):
+                self.ed_procedure_folder.setText(folder)
+            self._save_app_settings_to_disk()
+
+    def _browse_report_folder(self):
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select Report Data Filepath", self.report_data_filepath
+        )
+        if folder:
+            self.report_data_filepath = folder
+            self.report_save_folder = folder
+            if hasattr(self, "ed_report_folder"):
+                self.ed_report_folder.setText(folder)
             self._save_app_settings_to_disk()
 
     # ---- Export format ----
@@ -374,21 +442,39 @@ class AppSettingsPageMixin:
         data_lay = QGridLayout(gb_data)
         data_lay.setContentsMargins(12, 12, 12, 12)
 
-        data_lay.addWidget(QLabel("Default Save Folder:"), 0, 0)
-        self.ed_save_folder = QLineEdit(self.default_save_folder)
+        data_lay.addWidget(QLabel("Test_data_filepath:"), 0, 0)
+        self.ed_save_folder = QLineEdit(self.test_data_filepath)
         self.ed_save_folder.setReadOnly(True)
         self.ed_save_folder.setEnabled(False)
         data_lay.addWidget(self.ed_save_folder, 0, 1)
         self.btn_browse_folder = QPushButton("🔒 Browse")
-        self.btn_browse_folder.clicked.connect(self._secure_browse_save_folder)
+        self.btn_browse_folder.clicked.connect(self._secure_browse_test_data_folder)
         data_lay.addWidget(self.btn_browse_folder, 0, 2)
 
-        data_lay.addWidget(QLabel("Export Format:"), 1, 0)
+        data_lay.addWidget(QLabel("Report_data_filepath:"), 1, 0)
+        self.ed_report_folder = QLineEdit(self.report_data_filepath)
+        self.ed_report_folder.setReadOnly(True)
+        self.ed_report_folder.setEnabled(False)
+        data_lay.addWidget(self.ed_report_folder, 1, 1)
+        self.btn_browse_report_folder = QPushButton("🔒 Browse")
+        self.btn_browse_report_folder.clicked.connect(self._secure_browse_report_folder)
+        data_lay.addWidget(self.btn_browse_report_folder, 1, 2)
+
+        data_lay.addWidget(QLabel("Procedure_filepath:"), 2, 0)
+        self.ed_procedure_folder = QLineEdit(self.procedure_filepath)
+        self.ed_procedure_folder.setReadOnly(True)
+        self.ed_procedure_folder.setEnabled(False)
+        data_lay.addWidget(self.ed_procedure_folder, 2, 1)
+        self.btn_browse_procedure_folder = QPushButton("🔒 Browse")
+        self.btn_browse_procedure_folder.clicked.connect(self._secure_browse_procedure_folder)
+        data_lay.addWidget(self.btn_browse_procedure_folder, 2, 2)
+
+        data_lay.addWidget(QLabel("Export Format:"), 3, 0)
         self.cmb_export_format = QComboBox()
         self.cmb_export_format.addItems(["CSV", "TXT"])
         self.cmb_export_format.setCurrentText(self.export_format)
         self.cmb_export_format.setEnabled(False)
-        data_lay.addWidget(self.cmb_export_format, 1, 1)
+        data_lay.addWidget(self.cmb_export_format, 3, 1)
         right_l.addWidget(gb_data)
 
         left_l.addStretch(1)

@@ -307,7 +307,7 @@ class GraphPageMixin:
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Data File",
-            os.path.join(self.default_save_folder, "Test data"),
+            self.default_save_folder,
             "CSV/Text Files (*.csv *.txt);;All Files (*)"
         )
         if path:
@@ -437,7 +437,11 @@ class GraphPageMixin:
             pass
 
     def test_procedure(self):
-        target_dir = os.path.join(self.default_save_folder, "Test Procedure")
+        target_dir = getattr(
+            self,
+            "procedure_filepath",
+            os.path.join(self.default_save_folder, "Test Procedure"),
+        )
         target_base_name = "Rhino_Shortcuts_CheatSheet"
 
         if not os.path.isdir(target_dir):
