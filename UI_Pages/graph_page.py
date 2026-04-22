@@ -103,6 +103,10 @@ class GraphPageMixin:
         self.btn_next_cat.clicked.connect(self.goto_next_category_page)
         self.btn_manual_update.clicked.connect(self.reload_and_update_graph)
         self.chk_show_all_data.stateChanged.connect(self.on_show_all_data_changed)
+        
+        # Cache for full-history data (loaded on-demand when Show All Data is toggled)
+        self._full_history_cache = None
+        self._full_history_cache_valid = False
 
     def set_graph_empty_state(self, message: str):
         if hasattr(self, "graph_empty_state_label"):
@@ -133,7 +137,13 @@ class GraphPageMixin:
         self.graph_tabs.setCurrentIndex((i + 1) % n)
 
     def on_show_all_data_changed(self):
-        QTimer.singleShot(0, self.update_graph)
+        """When Show All Data is toggled, load full history from file on-demand."""
+        show_all = getattr(self, "chk_show_all_data", None) and self.chk_show_all_data.isChecked()
+        if show_all and not self._full_history_cache_valid:
+            # Load full history from file for Show All Data display
+            QTimer.singleShot(0, self._load_full_history_cache)
+        else:
+            QTimer.singleShot(0, self.update_graph)
 
     # =========================================================
     # Monitoring Engine (data file parsing, graph rendering)
@@ -148,6 +158,13 @@ class GraphPageMixin:
             "force": [],
             "has_other": False
         })
+
+    def _downsample_data(self, data_list, max_points=5000):
+        """Downsample large datasets for plotting performance."""
+        if len(data_list) <= max_points:
+            return data_list
+        step = len(data_list) // max_points
+        return data_list[::step]
 
     def setup_plot(self, selected_categories=None):
         if not hasattr(self, "graph_layout"):
@@ -352,8 +369,10 @@ class GraphPageMixin:
         try:
             if not hasattr(self, "graph_update_timer") or self.graph_update_timer is None:
                 self.graph_update_timer = QTimer(self)
-                self.graph_update_timer.timeout.connect(self.reload_and_update_graph)
-            self.graph_update_timer.start(5000)
+                # Reduced frequency - only update display every 2s (no file reload)
+                # Monitor thread handles incremental appends; full reload only on truncate/rotation
+                self.graph_update_timer.timeout.connect(self.update_graph)
+            self.graph_update_timer.start(2000)
         except Exception:
             pass
 
@@ -367,6 +386,10 @@ class GraphPageMixin:
         self.btn_stop.setEnabled(False)
         self.btn_start.setEnabled(True)
         self.btn_stop_main.setEnabled(False)
+
+        # Clear full-history cache on stop
+        self._full_history_cache = None
+        self._full_history_cache_valid = False
 
         try:
             if hasattr(self, "graph_update_timer"):
@@ -431,8 +454,28 @@ class GraphPageMixin:
                     self.hours = 0
                     self.days += 1
         self.lbl_timer.setText(f"Timer:{self.days:02d}:{self.hours:02d}:{self.minutes:02d}:{self.seconds:02d}")
-
-
+    def _load_full_history_cache(self):
+        """Load full history from file into cache for Show All Data display."""
+        if not self.file_path or not os.path.exists(self.file_path):
+            return
+        try:
+            temp_cache = self._new_grouped_store()
+            with open(self.file_path, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    parsed = self._parse_measure_line(line)
+                    if not parsed:
+                        continue
+                    step = parsed['cat']
+                    if step is None or step < 1:
+                        continue
+                    self._append_step_point_to_store(step, parsed, temp_cache)
+            self._full_history_cache = temp_cache
+            self._full_history_cache_valid = True
+            total_points = sum(len(v["resistance_tm"]) for v in temp_cache.values())
+            self.append_status(f"✓ Full history loaded: {total_points:,} total points cached for display.")
+        except Exception as e:
+            self.append_status(f"Full history cache load failed: {e}")
+        QTimer.singleShot(0, self.update_graph)
     def monitor_data_file(self):
         while self.running:
             try:
@@ -493,8 +536,14 @@ class GraphPageMixin:
     def update_graph(self):
         try:
             selected_categories = self._get_selected_categories_for_graph()
+            
+            # Determine which data source to use
+            show_all = getattr(self, "chk_show_all_data", None) and self.chk_show_all_data.isChecked()
+            use_cache = show_all and self._full_history_cache_valid
+            data_source = self._full_history_cache if use_cache else self.grouped_data
+            
             if not selected_categories:
-                inferred_steps = sorted(self.grouped_data.keys())
+                inferred_steps = sorted(data_source.keys())
                 if not inferred_steps:
                     self.set_graph_empty_state("No graph data available. Load a recipe and start monitoring first.")
                     return
@@ -531,7 +580,7 @@ class GraphPageMixin:
                 if step is None:
                     continue
 
-                data = self.grouped_data.get(step, {})
+                data = data_source.get(step, {})
                 cur_vals_tm = data.get("current_tm", [])
                 res_vals_tm = data.get("resistance_tm", [])
                 cur_vals_other = data.get("current_other", [])
@@ -541,6 +590,15 @@ class GraphPageMixin:
 
                 if not cur_vals_tm or not res_vals_tm:
                     continue
+                
+                # Apply downsampling for very large datasets (>5000 points) when showing all
+                if show_all and len(cur_vals_tm) > 5000:
+                    ds_factor = len(cur_vals_tm) // 5000
+                    cur_vals_tm = cur_vals_tm[::ds_factor]
+                    res_vals_tm = res_vals_tm[::ds_factor]
+                    cur_vals_other = cur_vals_other[::ds_factor] if cur_vals_other else []
+                    res_vals_other = res_vals_other[::ds_factor] if res_vals_other else []
+                    force_vals = force_vals[::ds_factor] if force_vals else []
 
                 rendered_any_page = True
 
@@ -597,7 +655,6 @@ class GraphPageMixin:
                         pass
 
                 if step == current_step:
-                    show_all = getattr(self, "chk_show_all_data", None) and self.chk_show_all_data.isChecked()
                     page.set_data(
                         label_text=f"{label_text}",
                         cur_vals=cur_vals_tm,
@@ -644,6 +701,25 @@ class GraphPageMixin:
             self.grouped_data[step]["current_other"].append(parsed_data['cur_other'])
             self.grouped_data[step]["resistance_other"].append(parsed_data['res_other'])
             self.grouped_data[step]["has_other"] = True
+        
+        # Invalidate full-history cache when new data arrives
+        self._full_history_cache_valid = False
+
+    def _append_step_point_to_store(self, step: int, parsed_data: dict, store: dict):
+        """Helper to append a point to any store (live or cache)."""
+        if step is None or parsed_data is None:
+            return
+        if step < 1:
+            return
+
+        store[step]["current_tm"].append(parsed_data['cur_tm'])
+        store[step]["resistance_tm"].append(parsed_data['res_tm'])
+        store[step]["force"].append(parsed_data['force'])
+
+        if parsed_data['has_other']:
+            store[step]["current_other"].append(parsed_data['cur_other'])
+            store[step]["resistance_other"].append(parsed_data['res_other'])
+            store[step]["has_other"] = True
 
     def _reload_full_file(self):
         self.grouped_data = self._new_grouped_store()
