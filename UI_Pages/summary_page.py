@@ -385,94 +385,101 @@ class SummaryPageMixin:
     def _build_report_text(self, report_data: dict) -> str:
         metadata = report_data["metadata"]
         config_name = report_data["config_name"]
-        operator_name = report_data["operator_name"]
         summaries = report_data["summaries"]
         tm_yield_rows = report_data["tm_yield_rows"]
         tm_overall_yield = report_data["tm_overall_yield"]
         other_yield_rows = report_data["other_yield_rows"]
         other_overall_yield = report_data["other_overall_yield"]
 
+        def kv(label: str, value: str) -> str:
+            return f"{label:<14} : {value}"
+
         report_lines = [
-            "POGO PIN TEST SUMMARY REPORT",
-            "=" * 72,
+            "=" * 70,
+            "█  POGO PIN DURABILITY TEST: EXECUTIVE SUMMARY REPORT  █",
+            "=" * 70,
             "",
-            "TEST INFORMATION",
-            "-" * 72,
-            f"Recipe Name      : {config_name}",
-            f"Project Number   : {metadata['project_name']}",
-            f"Pin Fixture      : {metadata['pin_fixture']}",
-            f"Operator         : {operator_name or 'N/A'}",
-            f"Engineer         : {metadata['engineer']}",
-            f"Recipe Created   : {metadata['created_time']}",
-            f"Source Data File : {metadata['data_file']}",
-            f"Display Mode     : {metadata['display_mode']}",
-            f"Max R-Value      : {metadata['y_axis_max']} mΩ",
-            f"Open Circuit     : {metadata['open_circuit']:.2f} mΩ",
-            f"Close Circuit    : {metadata['close_circuit']:.2f} mΩ",
-            f"Categories       : {', '.join(metadata['categories']) if metadata['categories'] else 'All detected categories'}",
-            f"Test Types       : {', '.join(metadata['test_types']) if metadata['test_types'] else 'N/A'}",
-            f"Started Time     : {getattr(self, 'start_time', '') or 'N/A'}",
-            f"Finished Time    : {report_data['end_time']}",
-            f"Total Duration   : {report_data['timer_string']}",
+            "█ TEST INFORMATION",
+            "-" * 70,
+            kv("Recipe Name", config_name),
+            kv("Project Number", str(metadata["project_name"])),
+            kv("Pin Fixture", str(metadata["pin_fixture"])),
+            kv("Operator", report_data["operator_name"] or "N/A"),
+            kv("Engineer", str(metadata["engineer"])),
+            kv("Source Data File", str(metadata["data_file"])),
+            kv("Categories", ", ".join(metadata["categories"]) if metadata["categories"] else "N/A"),
+            kv("Test Types", ", ".join(metadata["test_types"]) if metadata["test_types"] else "N/A"),
+            kv("Started Time", getattr(self, "start_time", "") or "N/A"),
+            kv("Finished Time", report_data["end_time"]),
+            kv("Total Duration", report_data["timer_string"]),
             "",
-            "CATEGORY RESULTS",
-            "-" * 72,
+            "█ RESISTANCE DATA",
+            "-" * 70,
+            "",
         ]
 
         for summary in summaries:
-            report_lines.append(f"Category: {summary['label']}")
-            report_lines.append("~" * 72)
+            count_text = f"{summary.get('count', 0):,}"
+            report_lines.append(f"Category: {summary['label']} (Test Count : {count_text})")
+            report_lines.append("| Pin Source    | Min (mΩ) | Max (mΩ) | Avg (mΩ) | Std Dev (mΩ) |")
+            report_lines.append("|---------------|----------|----------|----------|---------------|")
 
             if summary.get("comparison_mode", False):
                 tm = summary.get("tm", {})
                 other = summary.get("other", {})
-                report_lines.append("Comparison Mode  : TestMax Pin vs Other Pin")
-                report_lines.append(f"Sample Count     : TM={tm.get('count', 0):,} | Other={other.get('count', 0):,}")
-                report_lines.append(f"TM Minimum       : {tm.get('min', 0.0):.2f} mΩ")
-                report_lines.append(f"TM Maximum       : {tm.get('max', 0.0):.2f} mΩ")
-                report_lines.append(f"TM Average       : {tm.get('avg', 0.0):.2f} mΩ")
-                report_lines.append(f"TM Std. Dev.     : {tm.get('std', 0.0):.2f} mΩ")
-                report_lines.append(f"TM Upper Limit   : {tm.get('upper', 0.0):.2f} mΩ")
-                report_lines.append(f"Other Minimum    : {other.get('min', 0.0):.2f} mΩ")
-                report_lines.append(f"Other Maximum    : {other.get('max', 0.0):.2f} mΩ")
-                report_lines.append(f"Other Average    : {other.get('avg', 0.0):.2f} mΩ")
-                report_lines.append(f"Other Std. Dev.  : {other.get('std', 0.0):.2f} mΩ")
-                report_lines.append(f"Other Upper Limit: {other.get('upper', 0.0):.2f} mΩ")
-            elif summary["has_data"]:
-                report_lines.append("Comparison Mode  : TestMax Pin only")
-                report_lines.append(f"Sample Count     : {summary['count']:,}")
-                report_lines.append(f"Minimum R-Value  : {summary['min']:.2f} mΩ")
-                report_lines.append(f"Maximum R-Value  : {summary['max']:.2f} mΩ")
-                report_lines.append(f"Average R-Value  : {summary['avg']:.2f} mΩ")
-                report_lines.append(f"Upper Limit      : {summary['upper']:.2f} mΩ")
-                report_lines.append(f"Std. Deviation   : {summary['std']:.2f} mΩ")
+                report_lines.append(
+                    f"| TestMax Pin   | {tm.get('min', 0.0):>8.2f} | {tm.get('max', 0.0):>8.2f} | {tm.get('avg', 0.0):>8.2f} | {tm.get('std', 0.0):>13.2f} |"
+                )
+                report_lines.append(
+                    f"| Other Pin     | {other.get('min', 0.0):>8.2f} | {other.get('max', 0.0):>8.2f} | {other.get('avg', 0.0):>8.2f} | {other.get('std', 0.0):>13.2f} |"
+                )
+            elif summary.get("has_data", False):
+                report_lines.append(
+                    f"| TestMax Pin   | {summary['min']:>8.2f} | {summary['max']:>8.2f} | {summary['avg']:>8.2f} | {summary['std']:>13.2f} |"
+                )
             else:
-                report_lines.append("No test data available for this category.")
+                report_lines.append("| TestMax Pin   |      N/A |      N/A |      N/A |           N/A |")
 
             report_lines.append("")
-
-        report_lines.append("OVERALL YIELD SUMMARY")
-        report_lines.append("-" * 72)
+        
+        report_lines.append("")
+        report_lines.append("█ OVERALL YIELD SUMMARY")
+        report_lines.append("-" * 70)
         report_lines.append(
             f"TestMax Pin      : {tm_overall_yield['yield_pct']:.1f}%  |  Total={tm_overall_yield['total']:,}  Pass={tm_overall_yield['pass']:,}  Fail={tm_overall_yield['fail']:,}"
         )
-        for row in tm_yield_rows:
-            report_lines.append(
-                f"  {row['label']}: {row['yield_pct']:.1f}%  |  Total={row['total']:,}  Pass={row['pass']:,}  Fail={row['fail']:,}"
-            )
 
         if other_overall_yield is not None:
             report_lines.append("")
             report_lines.append(
                 f"Other Pin        : {other_overall_yield['yield_pct']:.1f}%  |  Total={other_overall_yield['total']:,}  Pass={other_overall_yield['pass']:,}  Fail={other_overall_yield['fail']:,}"
             )
-            for row in other_yield_rows:
-                report_lines.append(
-                    f"  {row['label']}: {row['yield_pct']:.1f}%  |  Total={row['total']:,}  Pass={row['pass']:,}  Fail={row['fail']:,}"
-                )
 
         report_lines.append("")
-        report_lines.append("End of report.")
+        report_lines.append("")
+
+        other_by_label = {row["label"]: row for row in other_yield_rows}
+        for tm_row in tm_yield_rows:
+            label = tm_row["label"]
+            other_row = other_by_label.get(label, {"pass": 0, "fail": 0, "total": 0}) if other_overall_yield is not None else None
+            count_text = f"{tm_row['total']:,}"
+            report_lines.append(f"Category: {label} (Test Count : {count_text})")
+            report_lines.append("| Pin Source     | Pass     | Fail     | Total     |")
+            report_lines.append("|----------------|----------|----------|-----------|")
+            report_lines.append(
+                f"| TestMax Pin    | {tm_row['pass']:>8} | {tm_row['fail']:>8} | {tm_row['total']:>9} |"
+            )
+
+            if other_row is not None:
+                report_lines.append(
+                    f"| Other Pin      | {other_row['pass']:>8} | {other_row['fail']:>8} | {other_row['total']:>9} |"
+                )
+
+            report_lines.append("")
+
+        report_lines.append("")
+
+        report_lines.append("_End of Executive Report. See Raw_Data.csv for full analysis._")
         return "\n".join(report_lines) + "\n"
 
     def _build_report_csv_rows(self, report_data: dict):
