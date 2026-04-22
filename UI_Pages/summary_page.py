@@ -169,6 +169,56 @@ class SummaryPageMixin:
 
         return summaries
 
+    def _calc_basic_metrics(self, values):
+        if not values:
+            return {
+                "count": 0,
+                "avg": 0.0,
+                "max": 0.0,
+                "min": 0.0,
+                "std": 0.0,
+                "has_data": False,
+            }
+
+        data_np = np.array(values, dtype=float)
+        return {
+            "count": len(values),
+            "avg": float(np.mean(data_np)),
+            "max": float(np.max(data_np)),
+            "min": float(np.min(data_np)),
+            "std": float(np.std(data_np)),
+            "has_data": True,
+        }
+
+    def _build_metric_summary_stats(self, tm_key: str, other_key: str):
+        selected_categories = self._get_selected_categories_for_graph()
+        if not selected_categories:
+            inferred_steps = sorted(self.grouped_data.keys())
+            selected_categories = [self.reverse_category_map.get(step, str(step)) for step in inferred_steps]
+
+        summaries = []
+        for category in selected_categories:
+            cat_value, cat_label = self._resolve_category_info(category)
+            data_dict = self.grouped_data.get(cat_value, {}) if cat_value is not None else {}
+            tm_data = data_dict.get(tm_key, [])
+
+            tm_stats = self._calc_basic_metrics(tm_data)
+
+            summaries.append({
+                "label": cat_label,
+                "comparison_mode": False,
+                "tm": tm_stats,
+                "other": self._calc_basic_metrics([]),
+                "count": tm_stats["count"],
+                "avg": tm_stats["avg"],
+                "max": tm_stats["max"],
+                "min": tm_stats["min"],
+                "std": tm_stats["std"],
+                "has_data": tm_stats["has_data"],
+            })
+
+        return summaries
+
     def _create_summary_card(self, summary: dict) -> QFrame:
         card = QFrame()
         card.setObjectName("summaryCard")
@@ -348,6 +398,7 @@ class SummaryPageMixin:
         config_name = metadata["recipe_name"]
         operator_name = self.operator_name.text().strip() if hasattr(self, "operator_name") else ""
         summaries = self._build_summary_stats()
+        current_summaries = self._build_metric_summary_stats("current_tm", "current_other")
         if not summaries:
             return None
 
@@ -374,6 +425,7 @@ class SummaryPageMixin:
             "config_name": config_name,
             "operator_name": operator_name,
             "summaries": summaries,
+            "current_summaries": current_summaries,
             "end_time": end_time,
             "timer_string": timer_string,
             "tm_yield_rows": tm_yield_rows,
@@ -386,6 +438,7 @@ class SummaryPageMixin:
         metadata = report_data["metadata"]
         config_name = report_data["config_name"]
         summaries = report_data["summaries"]
+        current_summaries = report_data["current_summaries"]
         tm_yield_rows = report_data["tm_yield_rows"]
         tm_overall_yield = report_data["tm_overall_yield"]
         other_yield_rows = report_data["other_yield_rows"]
@@ -441,7 +494,27 @@ class SummaryPageMixin:
                 report_lines.append("| TestMax Pin   |      N/A |      N/A |      N/A |           N/A |")
 
             report_lines.append("")
-        
+
+        report_lines.append("")
+        report_lines.append("█ CURRENT DATA")
+        report_lines.append("-" * 70)
+        report_lines.append("")
+
+        for summary in current_summaries:
+            count_text = f"{summary.get('count', 0):,}"
+            report_lines.append(f"Category: {summary['label']} (Test Count : {count_text})")
+            report_lines.append("| Pin Source    | Min (A)  | Max (A)  | Avg (A)  | Std Dev (A)   |")
+            report_lines.append("|---------------|----------|----------|----------|---------------|")
+
+            if summary.get("has_data", False):
+                report_lines.append(
+                    f"| Current       | {summary['min']:>8.4f} | {summary['max']:>8.4f} | {summary['avg']:>8.4f} | {summary['std']:>13.4f} |"
+                )
+            else:
+                report_lines.append("| Current       |      N/A |      N/A |      N/A |           N/A |")
+
+            report_lines.append("")
+
         report_lines.append("")
         report_lines.append("█ OVERALL YIELD SUMMARY")
         report_lines.append("-" * 70)
@@ -484,6 +557,7 @@ class SummaryPageMixin:
 
     def _build_report_csv_rows(self, report_data: dict):
         summaries = report_data["summaries"]
+        current_summaries = report_data["current_summaries"]
         tm_yield_rows = report_data["tm_yield_rows"]
         tm_overall_yield = report_data["tm_overall_yield"]
         other_yield_rows = report_data["other_yield_rows"]
@@ -503,6 +577,17 @@ class SummaryPageMixin:
                 rows.append([summary["label"], "TestMax only", summary["count"], f"{summary['min']:.2f}", f"{summary['max']:.2f}", f"{summary['avg']:.2f}", f"{summary['std']:.2f}", f"{summary['upper']:.2f}", "TestMax Pin"])
             else:
                 rows.append([summary["label"], "No data", 0, "", "", "", "", "", "TestMax Pin"])
+
+        rows.extend([
+            [],
+            ["Current Category", "Mode", "Count", "Minimum (A)", "Maximum (A)", "Average (A)", "Std Dev (A)", "Pin Source"],
+        ])
+
+        for summary in current_summaries:
+            if summary["has_data"]:
+                rows.append([summary["label"], "Current", summary["count"], f"{summary['min']:.4f}", f"{summary['max']:.4f}", f"{summary['avg']:.4f}", f"{summary['std']:.4f}", "Current"])
+            else:
+                rows.append([summary["label"], "No data", 0, "", "", "", "", "Current"])
 
         rows.extend([
             [],

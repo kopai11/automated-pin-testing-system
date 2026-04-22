@@ -127,7 +127,7 @@ class EngineerPageMixin:
         gg.addWidget(self.ed_close_circuit, 2, 1)
 
         # Categories
-        gb_cat = QGroupBox("Categories")
+        gb_cat = QGroupBox("Categories (Surface Contact Areas)")
         gc = QGridLayout(gb_cat)
         self.category_checks = {}
         categories = ["0%", "25%", "50%", "75%", "100%", "-75%", "-50%", "-25%", "-0%"]
