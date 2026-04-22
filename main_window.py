@@ -253,16 +253,56 @@ class MainWindow(
         self.update_datetime()
 
     def reload_and_update_graph(self):
-        """Reload the data file from disk and update the graph display."""
+        """Lightweight re-sync: append missing tail data; full reload only on reset/truncate."""
         if not getattr(self, "file_path", None) or not os.path.exists(self.file_path):
-            self.append_status("No data file to reload.")
+            self.append_status("No data file to re-sync.")
             return
+
         try:
-            self._reload_full_file()
+            current_size = os.path.getsize(self.file_path)
+
+            # File reset/truncate detected -> full rebuild for consistency.
+            if current_size < getattr(self, "last_file_size", 0) or getattr(self, "_file_pos", 0) > current_size:
+                self._reload_full_file()
+                self.last_file_size = current_size
+                self.update_graph()
+                return
+
+            old_pos = getattr(self, "_file_pos", 0)
+            if current_size > old_pos:
+                new_points = 0
+                with open(self.file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    f.seek(old_pos)
+                    new_data = f.read()
+                    self._file_pos = f.tell()
+
+                for line in new_data.splitlines():
+                    parsed = self._parse_measure_line(line)
+                    if not parsed:
+                        continue
+                    step = parsed.get("cat")
+                    if step is None:
+                        continue
+                    try:
+                        step = int(step)
+                    except Exception:
+                        continue
+                    if step < 1:
+                        continue
+
+                    self._append_step_point(step, parsed)
+                    self._last_step = step
+                    new_points += 1
+
+                self.last_file_size = current_size
+                self.append_status(f"Re-sync: appended {new_points} new points.")
+            else:
+                self.last_file_size = current_size
+                self.append_status("Re-sync: no new data found.")
+
+            self.update_graph()
         except Exception as e:
-            self.append_status(f"Reload failed: {e}")
-            return
-        self.update_graph()
+            self.append_status(f"Re-sync failed: {e}")
 
     # -------------------------
     # Date/time

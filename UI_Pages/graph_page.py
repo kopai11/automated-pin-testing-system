@@ -40,26 +40,28 @@ class GraphPageMixin:
         top_row = QHBoxLayout()
         outer_layout.addLayout(top_row)
 
-        self.btn_report = QPushButton("Save_Report")
-        self.btn_view_summary = QPushButton("Show Summary")
-        self.btn_stop = QPushButton("Stop")
+        self.btn_report = QPushButton("💾 Save Report")
+        self.btn_stop = QPushButton("⏹ Stop")
         self.btn_stop.setEnabled(False)
-        self.btn_manual_update = QPushButton("Manual Update Graph")
-        self.btn_prev_cat = QPushButton("\u25c0 Prev")
-        self.btn_next_cat = QPushButton("Next ▶")
+        self.btn_manual_update = QPushButton("🔄 Re-sync Data")
+        self.btn_freeze = QPushButton("❄️ Freeze")
+        self.btn_freeze.setEnabled(False)
+        self.btn_continue = QPushButton("▶ Continue")
+        self.btn_continue.setEnabled(False)
         self.chk_show_all_data = QCheckBox("Show All Test Data")
         self.chk_show_all_data.setChecked(False)
         self.lbl_start_time = QLabel("")
         self.lbl_timer = QLabel("")
         self.lbl_operator = QLabel("")
+        self.lbl_freeze_status = QLabel("")
         top_row.addWidget(self.btn_report)
-        top_row.addWidget(self.btn_view_summary)
         top_row.addWidget(self.btn_stop)
         top_row.addWidget(self.btn_manual_update)
-        top_row.addWidget(self.btn_prev_cat)
-        top_row.addWidget(self.btn_next_cat)
+        top_row.addWidget(self.btn_freeze)
+        top_row.addWidget(self.btn_continue)
         top_row.addWidget(self.chk_show_all_data)
         top_row.addStretch(1)
+        top_row.addWidget(self.lbl_freeze_status)
         top_row.addWidget(self.lbl_operator)
         top_row.addWidget(self.lbl_start_time)
         top_row.addWidget(self.lbl_timer)
@@ -98,15 +100,17 @@ class GraphPageMixin:
 
         self.btn_stop.clicked.connect(self.stop_monitoring)
         self.btn_report.clicked.connect(self.report_summary)
-        self.btn_view_summary.clicked.connect(self.open_summary_page)
-        self.btn_prev_cat.clicked.connect(self.goto_prev_category_page)
-        self.btn_next_cat.clicked.connect(self.goto_next_category_page)
         self.btn_manual_update.clicked.connect(self.reload_and_update_graph)
+        self.btn_freeze.clicked.connect(self.freeze_graph)
+        self.btn_continue.clicked.connect(self.continue_graph)
         self.chk_show_all_data.stateChanged.connect(self.on_show_all_data_changed)
         
         # Cache for full-history data (loaded on-demand when Show All Data is toggled)
         self._full_history_cache = None
         self._full_history_cache_valid = False
+        
+        # Freeze state for pausing graph updates
+        self._graph_frozen = False
 
     def set_graph_empty_state(self, message: str):
         if hasattr(self, "graph_empty_state_label"):
@@ -135,6 +139,23 @@ class GraphPageMixin:
             return
         i = self.graph_tabs.currentIndex()
         self.graph_tabs.setCurrentIndex((i + 1) % n)
+
+    def freeze_graph(self):
+        """Freeze live graph updates for detail inspection. Monitor thread continues in background."""
+        self._graph_frozen = True
+        self.btn_freeze.setEnabled(False)
+        self.btn_continue.setEnabled(True)
+        self.lbl_freeze_status.setText("🔒 FROZEN - Inspecting Data")
+        self.lbl_freeze_status.setStyleSheet("color: #e74c3c; font-weight: 700;")
+        
+    def continue_graph(self):
+        """Resume live graph updates."""
+        self._graph_frozen = False
+        self.btn_freeze.setEnabled(True)
+        self.btn_continue.setEnabled(False)
+        self.lbl_freeze_status.setText("")
+        self.lbl_freeze_status.setStyleSheet("")
+        QTimer.singleShot(0, self.update_graph)
 
     def on_show_all_data_changed(self):
         """When Show All Data is toggled, load full history from file on-demand."""
@@ -315,6 +336,12 @@ class GraphPageMixin:
         self.btn_stop.setEnabled(True)
         self.btn_start.setEnabled(False)
         self.btn_stop_main.setEnabled(True)
+        
+        # Reset freeze state at start
+        self._graph_frozen = False
+        self.btn_freeze.setEnabled(True)
+        self.btn_continue.setEnabled(False)
+        self.lbl_freeze_status.setText("")
 
         if not hasattr(self, "tmr") or self.tmr is None:
             self.tmr = QTimer(self)
@@ -386,6 +413,12 @@ class GraphPageMixin:
         self.btn_stop.setEnabled(False)
         self.btn_start.setEnabled(True)
         self.btn_stop_main.setEnabled(False)
+        
+        # Disable freeze/continue and clear freeze state
+        self._graph_frozen = False
+        self.btn_freeze.setEnabled(False)
+        self.btn_continue.setEnabled(False)
+        self.lbl_freeze_status.setText("")
 
         # Clear full-history cache on stop
         self._full_history_cache = None
@@ -535,6 +568,10 @@ class GraphPageMixin:
 
     def update_graph(self):
         try:
+            # Skip graph updates if frozen (but monitor thread continues in background)
+            if getattr(self, "_graph_frozen", False):
+                return
+            
             selected_categories = self._get_selected_categories_for_graph()
             
             # Determine which data source to use

@@ -207,18 +207,6 @@ class EngineerPageMixin:
 
     # ---- Setting page helpers ----
 
-    def create_file_qt(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Create New Data File", "", "CSV Files (*.csv);;Text Files (*.txt);;All Files (*)")
-        if path:
-            try:
-                os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-                with open(path, 'w') as f:
-                    f.write("")
-                self.ed_file_path.setText(path)
-                QMessageBox.information(self, "File Created", f"Data file created successfully at:\n{path}")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to create file: {str(e)}")
-
     def _get_display_mode_text(self) -> str:
         return "Display All_data" if self.rb_all_data.isChecked() else "Cut_off beyond limit data"
 
