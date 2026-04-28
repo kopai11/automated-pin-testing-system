@@ -405,7 +405,7 @@ class GraphPageMixin:
                 # Reduced frequency - only update display every 2s (no file reload)
                 # Monitor thread handles incremental appends; full reload only on truncate/rotation
                 self.graph_update_timer.timeout.connect(self.update_graph)
-            self.graph_update_timer.start(2000)
+            self.graph_update_timer.start(5000)
         except Exception:
             pass
 
