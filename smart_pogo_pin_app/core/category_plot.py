@@ -192,7 +192,9 @@ class CategoryPlotPage(QWidget):
         initial_idx = self.display_start_idx if hasattr(self, 'display_start_idx') else 0
         self._update_info(initial_idx)
 
-        self.fig.tight_layout(pad=1.0)
+        if not getattr(self, "_layout_done", False):
+            self.fig.tight_layout(pad=1.0)
+            self._layout_done = True
         self.canvas.draw_idle()
 
     def _update_info(self, idx):

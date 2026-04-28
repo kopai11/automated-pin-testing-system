@@ -42,8 +42,9 @@ class MainWindow(
 ):
     def __init__(self):
         super().__init__()
+        self.app_dir = os.path.dirname(os.path.abspath(__file__))
         self.setWindowTitle("Pogo Pin Analysis App")
-        icon_path = os.path.join(os.path.dirname(__file__), "pogo_pin_icon.svg")
+        icon_path = os.path.join(self.app_dir, "pogo_pin_icon.svg")
         self.setWindowIcon(QIcon(icon_path))
         self.resize(1200, 800)
 
@@ -73,7 +74,7 @@ class MainWindow(
         # tracking for cycle detection
         self._last_step = None
 
-        self.configs_file = "graph_configs.json"
+        self.configs_file = os.path.join(self.app_dir, "graph_configs.json")
         self.saved_configs = self.load_saved_configs()
         self.current_loaded_config_name = ""
 

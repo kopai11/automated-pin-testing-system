@@ -1,0 +1,86 @@
+{
+  "F1 24556": {
+    "project_name": "F1 24556",
+    "file_path": "",
+    "pin_fixture": "F1",
+    "measure_cat": [
+      "Force",
+      "Current",
+      "Resistance"
+    ],
+    "display_mode": "Display All_data",
+    "window_size": 10,
+    "yAxis_max": 500,
+    "open_circuit": 160,
+    "close_circuit": 0,
+    "categories": [
+      "0%",
+      "25%",
+      "50%",
+      "75%",
+      "100%"
+    ],
+    "Engineer": "kopai",
+    "Created_time": "2026-04-15 11:32:12"
+  },
+  "F3 24556": {
+    "project_name": "F3 24556",
+    "file_path": "",
+    "pin_fixture": "F3",
+    "measure_cat": [
+      "Force",
+      "Current",
+      "Resistance"
+    ],
+    "display_mode": "Cut_off beyond limit data",
+    "window_size": 10,
+    "yAxis_max": 500,
+    "open_circuit": 550,
+    "close_circuit": 0,
+    "categories": [
+      "50%"
+    ],
+    "Engineer": "kopai",
+    "Created_time": "2026-04-15 15:57:43"
+  },
+  "F3-4_2 24556": {
+    "project_name": "F3\\2 24556",
+    "file_path": "",
+    "pin_fixture": "F3\\2",
+    "measure_cat": [
+      "Force",
+      "Current",
+      "Resistance"
+    ],
+    "display_mode": "Cut_off beyond limit data",
+    "window_size": 10,
+    "yAxis_max": 310,
+    "open_circuit": 550,
+    "close_circuit": 0,
+    "categories": [
+      "100%"
+    ],
+    "Engineer": "kopai",
+    "Created_time": "2026-04-18 11:22:15"
+  },
+  "F4_1": {
+    "project_name": "F4_1",
+    "file_path": "C:/Users/HDD 205/Desktop/Pogo_Pin Quality_Test_ Data/Test data/F4_1.txt",
+    "pin_fixture": "F4_1",
+    "measure_cat": [
+      "Force",
+      "Current",
+      "Resistance"
+    ],
+    "display_mode": "Display All_data",
+    "window_size": 30,
+    "yAxis_max": 125,
+    "open_circuit": 130,
+    "close_circuit": 0,
+    "categories": [
+      "100%"
+    ],
+    "Engineer": "kopai",
+    "Created_time": "2026-04-18 14:02:44"
+  }
+}

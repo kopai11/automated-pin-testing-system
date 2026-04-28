@@ -560,14 +560,6 @@ class GraphPageMixin:
                         self._append_step_point(step, parsed)
                         self._last_step = step
 
-                    try:
-                        counts = {k: min(len(v["current_tm"]), len(v["resistance_tm"])) for k, v in self.grouped_data.items()}
-                        QTimer.singleShot(0, lambda: self.append_status(f"Live counts per step: {counts}"))
-                    except Exception:
-                        pass
-
-                    QTimer.singleShot(0, self.update_graph)
-
                 self.last_file_size = current_size
                 time.sleep(0.5)
 
