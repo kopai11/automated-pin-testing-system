@@ -1,3 +1,6 @@
+import os
+
+
 class ThemeMixin:
     """Mixin: Dark/Light theme stylesheet management."""
 
@@ -6,6 +9,8 @@ class ThemeMixin:
 
     def apply_theme(self, theme_name: str):
         self.current_theme = "Dark" if str(theme_name).strip().lower() == "dark" else "Light"
+        check_icon = os.path.join(os.path.dirname(os.path.dirname(__file__)), "check_mark_blue.svg")
+        check_icon = check_icon.replace("\\", "/")
 
         if self.current_theme == "Dark":
             app_style = """
@@ -66,18 +71,25 @@ class ThemeMixin:
                 QPushButton {
                     padding: 8px 16px;
                     border-radius: 6px;
-                    border: 1px solid #3d444d;
-                    background-color: #30363d;
+                    border: 1px solid #4b5563;
+                    background-color: #2f3742;
                     color: #e6edf3;
-                    font-weight: 500;
+                    font-weight: 600;
                 }
                 QPushButton:hover {
-                    background-color: #3d444d;
-                    border-color: #6e7681;
+                    background-color: #39424f;
+                    border-color: #7d8590;
                 }
                 QPushButton:pressed {
-                    background-color: #24292f;
+                    background-color: #222a33;
                     border-color: #8b949e;
+                    padding-top: 9px;
+                    padding-bottom: 7px;
+                }
+                QPushButton:checked {
+                    background-color: #2f81f7;
+                    border-color: #58a6ff;
+                    color: #ffffff;
                 }
                 QPushButton:disabled {
                     background-color: #2a2f36;
@@ -110,6 +122,39 @@ class ThemeMixin:
                 }
                 QCheckBox, QRadioButton {
                     color: #e6edf3;
+                }
+                QCheckBox:hover, QRadioButton:hover {
+                    color: #f0f6fc;
+                }
+                QCheckBox {
+                    spacing: 8px;
+                }
+                QRadioButton {
+                    spacing: 8px;
+                }
+                QCheckBox::indicator, QGroupBox::indicator {
+                    width: 16px;
+                    height: 16px;
+                    border: 1px solid #8b949e;
+                    border-radius: 4px;
+                    background: #161b22;
+                }
+                QCheckBox::indicator:checked, QGroupBox::indicator:checked {
+                    border: 1px solid #58a6ff;
+                    background: #161b22;
+                    image: url({CHECK_ICON});
+                }
+                QRadioButton::indicator {
+                    width: 16px;
+                    height: 16px;
+                    border: 2px solid #8b949e;
+                    border-radius: 8px;
+                    background: #161b22;
+                }
+                QRadioButton::indicator:checked {
+                    border: 2px solid #58a6ff;
+                    border-radius: 8px;
+                    background: #2f81f7;
                 }
                 QWidget#watermarked {
                     background: transparent;
@@ -181,15 +226,22 @@ class ThemeMixin:
                     border: 1px solid #d0d7de;
                     background-color: #f3f4f6;
                     color: #1f2328;
-                    font-weight: 500;
+                    font-weight: 600;
                 }
                 QPushButton:hover {
-                    background-color: #eaedf0;
+                    background-color: #e8edf3;
                     border-color: #8c959f;
                 }
                 QPushButton:pressed {
-                    background-color: #d8dee4;
+                    background-color: #d0d7de;
                     border-color: #6e7781;
+                    padding-top: 9px;
+                    padding-bottom: 7px;
+                }
+                QPushButton:checked {
+                    background-color: #0969da;
+                    border-color: #218bff;
+                    color: #ffffff;
                 }
                 QPushButton:disabled {
                     background-color: #f5f5f5;
@@ -223,6 +275,39 @@ class ThemeMixin:
                 QCheckBox, QRadioButton {
                     color: #1f2328;
                 }
+                QCheckBox:hover, QRadioButton:hover {
+                    color: #0f1720;
+                }
+                QCheckBox {
+                    spacing: 8px;
+                }
+                QRadioButton {
+                    spacing: 8px;
+                }
+                QCheckBox::indicator, QGroupBox::indicator {
+                    width: 16px;
+                    height: 16px;
+                    border: 1px solid #6e7781;
+                    border-radius: 4px;
+                    background: #ffffff;
+                }
+                QCheckBox::indicator:checked, QGroupBox::indicator:checked {
+                    border: 1px solid #218bff;
+                    background: #ffffff;
+                    image: url({CHECK_ICON});
+                }
+                QRadioButton::indicator {
+                    width: 16px;
+                    height: 16px;
+                    border: 2px solid #6e7781;
+                    border-radius: 8px;
+                    background: #ffffff;
+                }
+                QRadioButton::indicator:checked {
+                    border: 2px solid #218bff;
+                    border-radius: 8px;
+                    background: #0969da;
+                }
                 QWidget#watermarked {
                     background: transparent;
                 }
@@ -231,6 +316,8 @@ class ThemeMixin:
                     border: 0;
                 }
             """
+
+        app_style = app_style.replace("{CHECK_ICON}", check_icon)
 
         # Inject font-size override if user has set one
         font_sizes = {"Small": 12, "Medium": 14, "Large": 17}
